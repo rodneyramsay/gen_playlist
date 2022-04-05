@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+
+print("#EXTM3U\n");
+$ii = 1;
+
+while(<>) {
+
+    $path = $_;
+    chomp($path);
+    $path =~ s/\//\\/g;
+
+    @items = split(/\\/, $path);
+    
+    $file_name = $items[$#items];
+    
+    chomp($file_name);
+    
+    printf("#EXTINF:0,%02d. %s\n", $ii, $file_name);
+    print("$path\n\n");
+
+    $ii++;
+}
