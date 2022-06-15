@@ -1,22 +1,149 @@
 #!/usr/bin/perl
+use Getopt::Std;
 
-print("#EXTM3U\n");
-$ii = 1;
+#
+#
+#
+$usage =
+    "gen_m3u [-r] <txt file>\n" .
+    "\n" .
+    "Create a playlist based on audio file names in text file.\n\n" .
+    "-r        Use random album order\n" .
+    "\n\n";
 
+#
+# (h)elp or (r)andom options..
+#
+getopts("hr");
+
+if(defined($opt_h)) {
+   print $usage;
+   exit;
+}
+
+#
+# Keep track of album names.
+#
+$prev_art_album = "";
+
+#
+# https://www.oreilly.com/library/view/perl-cookbook/1565922433/ch04s18.html
+# fisher_yates_shuffle( \@array ) : generate a random permutation
+# of @array in place
+sub fisher_yates_shuffle {
+    my $array = shift;
+    my $i;
+    for ($i = @$array; --$i; ) {
+        my $j = int rand ($i+1);
+        next if $i == $j;
+        @$array[$i,$j] = @$array[$j,$i];
+    }
+}
+
+#
+# Just compare album name part.
+#
+sub by_album {
+   $left = $a;
+   $right = $b;
+
+   if($a =~ m/([a-zA-Z0-9_]+)\/([a-zA-Z0-9_]+)/) {
+      $left = $2;
+   }
+   
+   if($b =~ m/([a-zA-Z0-9_]+)\/([a-zA-Z0-9_]+)/) {
+      $right = $2;
+   }
+
+   $left cmp $right;
+}
+   
+
+#
+# Loop through output of find function to build up M3U file.
+#
 while(<>) {
 
-    $path = $_;
-    chomp($path);
-    $path =~ s/\//\\/g;
+   #
+   # Fix up path name to match for Windows name.
+   #
+   $path = $_;
+   chomp($path);
+   $path =~ s/^\.\//\.\.\/Music\//;
+   $path =~ s/\//\\/g;
 
-    @items = split(/\\/, $path);
-    
-    $file_name = $items[$#items];
-    
-    chomp($file_name);
-    
-    printf("#EXTINF:0,%02d. %s\n", $ii, $file_name);
-    print("$path\n\n");
+   
+   #
+   # ..\Music\<Genre>\<Artist>\Album\<rest of path to file>
+   #
+   # File name is last part.
+   #
+   @items = split(/\\/, $path);
+   $file_name = $items[$#items];
+   chomp($file_name);
 
-    $ii++;
+   #
+   # Artist and Album name
+   #
+   $artist_name = $items[3];
+   $album_name = $items[4];
+
+   #
+   # Remember all path names for this artist/album
+   #
+   push(@{$album_files{$artist_name}{$album_name}}, $path);
+
+   #
+   # Build up tuples of artest and album name. Only need artist here in case
+   # more than one album of the same name (by the different artists).
+   #
+   $art_album = "$artist_name/$album_name";
+
+   #
+   # Remember a list of artist/album strings.
+   #
+   if("$prev_art_album" ne "$art_album") {
+      push(@art_album, $art_album);
+      $prev_art_album = $art_album;
+   }
+
+}
+
+#
+# Random order?
+#
+if(defined($opt_r)) {
+   fisher_yates_shuffle( \@art_album );    # permutes @array in place
+}
+#
+# Otherwise, sort by album name only.
+#
+else {
+   @sorted_album = sort by_album @art_album;
+   @art_album = @sorted_album;
+}
+
+#
+# Index for EXIF.
+#
+$ii = 1;
+
+print("#EXTM3U\n");
+foreach $art_album (@art_album) {
+
+   @aa_tuple = split(/\//, $art_album);
+   $artist_name = $aa_tuple[0];
+   $album_name = $aa_tuple[1];
+
+   #
+   # Keep tracks in order only changing album order.
+   #
+   foreach $path (@{$album_files{$artist_name}{$album_name}}) {
+      @items = split(/\\/, $path);
+      $file_name = $items[$#items];
+      
+      printf("#EXTINF:0,%02d. %s\n", $ii, $file_name);
+      print("$path\n\n");
+      $ii++;
+   }
 }
