@@ -60,7 +60,7 @@ sub by_album {
    
 
 #
-# Loop through output of find function to build up M3U file.
+# Loop through output of [find . -name "*.flac" -print | sort] to build up M3U file.
 #
 while(<>) {
 
